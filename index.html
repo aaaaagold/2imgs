@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+//body.black,body.black input,body.black div{color:#000000;flood-color:#000000;}
+//body.white,body.white input,body.white div{color:#FFFFFF;flood-color:#FFFFFF;}
+.disp,.disp *{color:#000000;background-color:#FFFFFF;flood-color:#000000;}
+</style>
+</head>
+<body class="black">
+<div>
+<div><button id="chbg">change current background</button></div>
+<div>================</div>
+<div class="disp">
+	<div>pic 1 @lighter back ground 1<input id="bg1" value="#FFFFFF"></div>
+	<input id="file1" type=file>
+	<div style="display:none"><img id="tmp1"></div>
+</div>
+<div>================</div>
+<div class="disp">
+	<div>pic 2 @darker back ground 2<input id="bg2" value="#000000"></div>
+	<input id="file2" type=file>
+	<div style="display:none"><img id="tmp2"></div>
+</div>
+<div>================</div>
+<div><button id="generate">generate</button></div>
+<div><canvas id="output"></div>
+</div>
+<script>
+const d=document;
+d.ge=(id)=>d.getElementById(id);
+d.ce=(tag)=>d.createElement(tag);
+d.body.style.backgroundColor=d.ge("bg1").value;
+const getAvgBg=()=>{ // no alpha chanel
+	const bg1=Number("0x"+d.ge("bg1").value.slice(1));
+	const bg2=Number("0x"+d.ge("bg2").value.slice(1));
+	let bgavg=0;
+	for(let x=24;x;){
+		x-=8;
+		bgavg+=(( ((bg1>>x)&0xFF) + ((bg2>>x)&0xFF) )>>1)<<x;
+	}
+	return [ (bgavg>>16)&0xFF, (bgavg>>8)&0xFF, (bgavg>>0)&0xFF, ];
+};
+const chbg=d.ge("chbg");
+chbg.onclick=()=>{
+	let stl=d.body.style;
+	if(d.body.wb^=1){
+		stl.backgroundColor=d.ge("bg2").value;
+//		f2.style.floodColor = f1.style.floodColor = stl.color = d.ge("bg1").value;
+//		d.body.setAttribute("class","white");
+	}else{
+		stl.backgroundColor=d.ge("bg1").value;
+//		f2.style.floodColor = f1.style.floodColor = stl.color = d.ge("bg2").value;
+//		d.body.setAttribute("class","black");
+	}
+};
+const f1=d.ge("file1");
+const f2=d.ge("file2");
+f2.onchange=f1.onchange=function(){
+	let self=this;
+	self.ok=false;
+	if(this.files.length===0){
+		self.value='';
+		return;
+	}
+	let reader=self.fileReader;
+	if(reader){
+		reader.onabort=null;
+		reader.abort();
+		delete self.fileReader;
+	}
+	reader=new FileReader();
+	reader.onabort=function(){
+		delete self.fileReader;
+	};
+	reader.onerror=function(){
+		delete self.fileReader;
+	};
+	reader.onload=function(e){
+		d.ge("tmp"+self.getAttribute("id").slice(-1)).setAttribute("src",e.target.result);
+		//self.value='';
+		self.ok=true;
+	};
+	self.fileReader=reader;
+	//reader.readAsDataURL(this.files[0]);
+	//reader.readAsArrayBuffer(this.files[0]);
+	reader.readAsDataURL(this.files[0]);
+};
+const gen=d.ge("generate");
+gen.onclick=function(){
+	if(!f1.ok||!f2.ok) alert("one or both of pics not loaded");
+	tmpc.paste(d.ge("tmp1")).toBw(true);
+	output.paste(tmpc);
+	tmpc.paste(d.ge("tmp2")).toBw(false);
+	let w=tmpc2.width=output.width;
+	let h=tmpc2.height=output.height; 
+	tmpc2.getContext('2d').clearRect(0,0,w,h); tmpc2.paste(tmpc,true);
+	{
+		let cc0=String.fromCharCode(0);
+		const bg1=d.ge("bg1").value.replace(/^#/,"").replace(/([0-9A-Fa-f]{2})/g,"$1"+cc0).split(cc0).map(x=>Number("0x"+x)); bg1.pop();
+		const bg2=d.ge("bg2").value.replace(/^#/,"").replace(/([0-9A-Fa-f]{2})/g,"$1"+cc0).split(cc0).map(x=>Number("0x"+x)); bg2.pop();
+		console.log(bg1,bg2);
+		let octx=output.getContext('2d');
+		let data_o=octx.getImageData(0,0,w,h);
+		let data=data_o.data;
+		let data_t=tmpc2.getContext('2d').getImageData(0,0,w,h);
+		const bgavg=getAvgBg();
+		for(let y=0;y!==h;++y) for(let x=0;x!==w;++x){
+			let idxa=((y*w+x)<<2)|3;
+			if(data_o.data[idxa]===0||data_t.data[idxa]===0){
+				if(data_o.data[idxa]===0&&data_t.data[idxa]===0){
+					;
+				}else if(data_o.data[idxa]===0){
+					for(let i=4;--i;) data[idxa-i]=bg1[3-i];
+					//data[idxa-1]=data[idxa-2]=data[idxa-3]=255;
+					data[idxa]=127;
+				}else{
+					for(let i=4;--i;) data[idxa-i]=bg2[3-i];
+					//data[idxa-1]=data[idxa-2]=data[idxa-3]=0;
+					data[idxa]=127;
+				}
+			}
+		}
+		octx.putImageData(data_o,0,0);
+		//tmpc2.getContext('2d').putImageData(data_t,0,0);
+	}
+	//output.paste(tmpc2,true);
+};
+const output=d.ge("output");
+const tmpc=d.ce("canvas"),tmpc2=d.ce("canvas");
+tmpc.paste=function(img){
+	this.width=img.width;
+	this.height=img.height;
+	this.getContext('2d').clearRect(0,0,this.width,this.height);
+	this.getContext('2d').drawImage(img,0,0);
+	return this;
+};
+tmpc2.paste=output.paste=function(img,remainWH){
+	let ctx=this.getContext('2d');
+	if(remainWH){
+		let r=Math.min(this.width/img.width,this.height/img.height);
+		ctx.drawImage(img,0,0,img.width*r,img.height*r);
+	}else tmpc.paste.call(this,img);
+	return this;
+};
+tmpc.toBw=function(bwBg){ // 0,1
+	let ctx=this.getContext('2d');
+	let data=ctx.getImageData(0,0,this.width,this.height);
+	let sum=0;
+	for(let x=0,arr=data.data;x!==arr.length;x+=4) sum+=arr[x]+arr[x+1]+arr[x+2];
+	sum/=data.data.length>>2;
+	const bgavg=getAvgBg();
+	for(let x=0,arr=data.data;x!==arr.length;x+=4){
+		//arr[x+3]>>=1;
+		if(arr[x]+arr[x+1]+arr[x+2]<sum){
+			if(!bwBg) arr[x+3]=0;
+		}else{
+			if(bwBg) arr[x+3]=0;
+		}
+		for(let i=3;i--;) arr[x+i]=bgavg[i];
+	}
+	ctx.putImageData(data,0,0);
+	return this;
+};
+</script>
+</body>
+</html>
